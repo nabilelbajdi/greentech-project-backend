@@ -1,0 +1,30 @@
+{
+  "name": "greentech-project-backend",
+  "version": "1.0.0",
+  "description": "backend repo for the green tech project",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nabilelbajdi/greentech-project-backend.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nabilelbajdi/greentech-project-backend/issues"
+  },
+  "homepage": "https://github.com/nabilelbajdi/greentech-project-backend#readme",
+  "dependencies": {
+    "express": "^4.18.2",
+    "path": "^0.12.7",
+    "socket.io": "^4.6.1",
+    "express-jwt": "^8.4.1",
+    "express-jwt-permissions": "^1.3.7",
+    "express-oauth2-jwt-bearer": "^1.4.1"
+  }
+}
