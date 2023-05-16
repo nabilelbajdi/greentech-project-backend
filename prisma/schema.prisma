@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model friendrequests {
+  A String
+  B String
+
+  @@unique([A, B], map: "_friendRequests_AB_unique")
+  @@index([B], map: "_friendRequests_B_index")
+  @@map("_friendrequests")
+}
+
+model friendrequestssent {
+  A String
+  B String
+
+  @@unique([A, B], map: "_friendRequestsSent_AB_unique")
+  @@index([B], map: "_friendRequestsSent_B_index")
+  @@map("_friendrequestssent")
+}
+
+model friends {
+  A String
+  B String
+
+  @@unique([A, B], map: "_friends_AB_unique")
+  @@index([B], map: "_friends_B_index")
+  @@map("_friends")
+}
+
+model account {
+  id                String  @id
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId], map: "Account_provider_providerAccountId_key")
+  @@index([userId], map: "Account_userId_idx")
+}
+
+model comment {
+  id        String   @id
+  author_id String?
+  post_id   String?
+  text      String
+  created   DateTime @default(now())
+  updated   DateTime @default(now())
+
+  @@index([author_id], map: "Comment_author_id_idx")
+  @@index([post_id], map: "Comment_post_id_idx")
+}
+
+model image {
+  id        String   @id
+  author_id String?
+  post_id   String?
+  url       String
+  created   DateTime @default(now())
+  updated   DateTime @default(now())
+
+  @@index([author_id], map: "Image_author_id_idx")
+  @@index([post_id], map: "Image_post_id_idx")
+}
+
+model like {
+  id      String  @id
+  user_id String?
+  post_id String?
+
+  @@index([post_id], map: "Like_post_id_idx")
+  @@index([user_id], map: "Like_user_id_idx")
+}
+
+model post {
+  id        String   @id
+  text      String
+  author_id String?
+  created   DateTime @default(now())
+  updated   DateTime @default(now())
+
+  @@index([author_id], map: "Post_author_id_idx")
+}
+
+model session {
+  id           String   @id
+  sessionToken String   @unique(map: "Session_sessionToken_key")
+  userId       String
+  expires      DateTime
+
+  @@index([userId], map: "Session_userId_idx")
+}
+
+model user {
+  id              String    @id
+  name            String?
+  email           String?   @unique(map: "User_email_key")
+  emailVerified   DateTime?
+  image           String?
+  city            String?
+  country         String?
+  dateOfBirth     DateTime?
+  firstName       String?
+  fullyRegistered Boolean   @default(false)
+  lastName        String?
+  userPath        String?   @unique(map: "User_userPath_key")
+}
+
+model verificationtoken {
+  identifier String
+  token      String   @unique(map: "VerificationToken_token_key")
+  expires    DateTime
+
+  @@unique([identifier, token], map: "VerificationToken_identifier_token_key")
+}
