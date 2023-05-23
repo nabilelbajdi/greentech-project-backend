@@ -24,8 +24,6 @@ const authenticate = (req, res, next) => {
                 where: { id: data.userId }
             });
 
-            console.log(user);
-
             if (!user) {
 
                 res.sendStatus(403);
