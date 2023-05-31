@@ -19,3 +19,5 @@ jobs:
         GITLAB_PASSWORD: ${{ secrets.GITLAB_PASSWORD }}
         GITLAB_PROJECT_ID: "46469228"
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# test
