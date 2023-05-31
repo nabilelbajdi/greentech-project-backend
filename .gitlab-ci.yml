@@ -14,9 +14,9 @@ build:
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
     - docker push $CI_REGISTRY_IMAGE:latest
-  rules:
-    - exists: 
-      - $SKIP_BUILD
+#  rules:
+#    - exists: 
+#      - $SKIP_BUILD
 
 lint:
   stage: lint
@@ -26,9 +26,9 @@ lint:
     - npm install eslint eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-import eslint-plugin-jsx-a11y eslint-config-next --save-dev
     - npm run lint
   allow_failure: true
-  rules:
-    - exists: 
-      - $SKIP_LINT
+#  rules:
+#    - exists: 
+#      - $SKIP_LINT
 
 deploy-test:
   stage: deploy
