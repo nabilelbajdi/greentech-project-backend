@@ -1,2 +1,2 @@
 # greentech-project-backend
-backend repo for the green tech project
+Backend repo for the green tech project
