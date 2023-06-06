@@ -151,7 +151,6 @@ io.on('connection', (socket) => {
         });
         const receivedList = await prisma.privateMessage.findMany({
             where: { to_id: socket.data.user.id, },
-            distinct: ['from_id'],
             orderBy: {
                 created: 'desc',
             },
@@ -170,21 +169,66 @@ io.on('connection', (socket) => {
 
         combinedList.forEach(message => {
             message.message = `Du: ${message.message}`;
+            message.unseen = 0;
         });
 
+        const receivedFrom = [];
+
         receivedList.forEach(message => {
-            message.to = message.from
+
+
+
+            if (receivedFrom.filter(user => user.userPath === message.from.userPath).length === 0) {
+
+                receivedFrom.push({ userPath: message.from.userPath, unseen: 0 })
+
+            }
+            if (!message.seen) {
+                for (let i = 0; i < receivedFrom.length; i++) {
+
+                    if (message.from.userPath === receivedFrom[i].userPath) {
+
+                        receivedFrom[i].unseen++;
+
+                    }
+                }
+            }
+
+            for (let i = 0; i < receivedFrom.length; i++) {
+
+                if (message.from.userPath === receivedFrom[i].userPath) {
+
+                    if (receivedFrom[i].message) {
+
+                        if (message.created > receivedFrom[i].message.created) {
+
+                            receivedFrom[i].message = message;
+
+                        }
+                    } else {
+
+                        receivedFrom[i].message = message;
+
+                    }
+                }
+            }
+        })
+
+        receivedFrom.forEach(user => {
+
+            user.message.unseen = user.unseen;
+            user.message.to = user.message.from
             let exists = false;
 
             for (let i = 0; i < combinedList.length; i++) {
 
-                if (combinedList[i].to_id === message.from_id) {
+                if (combinedList[i].to_id === user.message.from_id) {
 
                     exists = true;
 
-                    if (combinedList[i].created < message.created) {
+                    if (combinedList[i].created < user.message.created) {
 
-                        combinedList[i] = message;
+                        combinedList[i] = user.message;
 
                     }
 
@@ -194,7 +238,7 @@ io.on('connection', (socket) => {
 
             if (!exists) {
 
-                combinedList.push(message);
+                combinedList.push(user.message);
 
             }
         });
@@ -226,6 +270,17 @@ io.on('connection', (socket) => {
 
         socket.emit('get conversation list', { conversations: combinedList })
 
+    })
+
+    socket.on('messages seen', async ({ seenMsgs }) => {
+
+        for (let i = 0; i < seenMsgs.messages.length; i++) {
+            console.log('seen:', seenMsgs.messages[i])
+            await prisma.privateMessage.update({
+                where: { id: seenMsgs.messages[i] },
+                data: { seen: seenMsgs.time }
+            })
+        }
     })
 
 })
