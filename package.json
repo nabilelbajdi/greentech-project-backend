@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/nabilelbajdi/greentech-project-backend#readme",
   "dependencies": {
+    "@prisma/client": "^4.14.0",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "express-jwt": "^8.4.1",
@@ -27,6 +28,10 @@
     "express-oauth2-jwt-bearer": "^1.4.1",
     "jsonwebtoken": "^9.0.0",
     "path": "^0.12.7",
-    "socket.io": "^4.6.1"
+    "socket.io": "^4.6.1",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^4.14.0"
   }
 }
