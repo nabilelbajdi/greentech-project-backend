@@ -275,12 +275,180 @@ io.on('connection', (socket) => {
     socket.on('messages seen', async ({ seenMsgs }) => {
 
         for (let i = 0; i < seenMsgs.messages.length; i++) {
-            console.log('seen:', seenMsgs.messages[i])
+
             await prisma.privateMessage.update({
                 where: { id: seenMsgs.messages[i] },
                 data: { seen: seenMsgs.time }
             })
         }
+    })
+
+    socket.on('notification', async (notification) => {
+
+        const receiver = await prisma.user.findUnique({
+            where: { userPath: notification.to },
+            include: {
+                notificationsReceived: true,
+                notificationsSent: true,
+            }
+        })
+
+        if (!receiver) {
+
+            socket.emit('error', 'Could not find receiver');
+            return;
+
+        }
+
+        let unseen = 0;
+
+        for (let i = 0; i < receiver.notificationsReceived.length; i++) {
+
+            if (!receiver.notificationsReceived[i].seen) {
+
+                unseen++;
+
+            }
+
+        }
+
+        if (receiver.socketId) {
+
+            socket.to(receiver.socketId).emit('notification', unseen);
+
+        }
+
+    });
+
+    socket.on('notifications seen', async (seen) => {
+
+        for (let i = 0; i < seen.notifications.length; i++) {
+
+            await prisma.notification.update({
+                where: { id: seen.notifications[i] },
+                data: { seen: seen.time }
+            })
+        }
+    })
+
+    socket.on('get notifications', async () => {
+
+        const data = await prisma.notification.findMany({
+            where: { to_id: socket.data.user.id },
+            orderBy: {
+                updated: 'asc'
+            },
+            include: {
+                from: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        userPath: true,
+                        image: true,
+                    }
+                },
+                to: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        userPath: true,
+                        image: true,
+                    }
+                },
+            }
+        })
+
+        if (data) {
+
+            const notifications = [];
+
+            for (let i = 0; i < data.length; i++) {
+
+                let note;
+
+                switch (data[i].type) {
+
+                    case 'friendrequest':
+                        note = {
+
+                            id: data[i].id,
+                            type: 'friendrequest',
+                            message: `Du har fått en vänförfrågan från ${data[i].from.firstName} ${data[i].from.lastName}`,
+                            image: data[i].from.image,
+                            updated: data[i].updated,
+                            seen: data[i].seen,
+
+                        }
+
+                        break;
+
+                    case 'friendrequest confirmed':
+                        note = {
+                            id: data[i].id,
+                            type: 'friendrequest confirmed',
+                            message: `${data[i].from.firstName} ${data[i].from.lastName} har bekräftat din vänförfrågan`,
+                            image: data[i].from.image,
+                            updated: data[i].updated,
+                            userPath: data[i].from.userPath,
+                            seen: data[i].seen,
+
+                        }
+
+                        break;
+
+                    default:
+
+                        note = {
+                            id: data[i].id,
+                            type: 'default',
+                            message: data[i].message,
+                            updated: data[i].updated,
+                            seen: data[i].seen,
+
+                        }
+
+                }
+
+                notifications.push(note);
+
+            }
+
+            socket.emit('get notifications', notifications);
+
+        }
+
+    })
+
+    socket.on('check unseen notifications', async () => {
+
+        const notifications = await prisma.notification.findMany({
+            where: { to_id: socket.data.user.id }
+
+        })
+
+        if (notifications) {
+
+            let unseen = 0;
+
+            for (let i = 0; i < notifications.length; i++) {
+
+                if (!notifications[i].seen) {
+
+                    unseen++;
+
+                }
+
+            }
+
+            if (unseen > 0) {
+
+                socket.emit('notification', unseen);
+
+
+            }
+
+        }
+
     })
 
 })
