@@ -322,13 +322,22 @@ io.on('connection', (socket) => {
 
     socket.on('notifications seen', async (seen) => {
 
-        for (let i = 0; i < seen.notifications.length; i++) {
+        try {
 
-            await prisma.notification.update({
-                where: { id: seen.notifications[i] },
-                data: { seen: seen.time }
-            })
+            for (let i = 0; i < seen.notifications.length; i++) {
+
+                await prisma.notification.update({
+                    where: { id: seen.notifications[i] },
+                    data: { seen: seen.time }
+                })
+            }
+
+        } catch (e) {
+
+            console.log(e);
+
         }
+
     })
 
     socket.on('get notifications', async () => {
