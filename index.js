@@ -460,6 +460,35 @@ io.on('connection', (socket) => {
 
     })
 
+    socket.on('get friends list', async () => {
+
+        const user = await prisma.user.findUnique({
+            where: { id: socket.data.user.id },
+            select: {
+                friends: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        userPath: true,
+                        image: true,
+                        socketId: true,
+                        id: true,
+                    }
+                }
+            }
+        })
+
+        if (!user) {
+
+            socket.emit('error', 'Could not find user');
+            return;
+
+        }
+
+        socket.emit('get friends list', user.friends);
+
+    })
+
 })
 
 const __filename = fileURLToPath(import.meta.url);
