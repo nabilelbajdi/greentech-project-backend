@@ -42,290 +42,337 @@ io.on('connection', (socket) => {
 
     socket.on('private message', async ({ to, message }) => {
 
-        const receiver = await prisma.user.findUnique({
-            where: { userPath: to }
-        })
+        try {
 
-        if (!receiver) {
+            const receiver = await prisma.user.findUnique({
+                where: { userPath: to }
+            })
 
-            socket.emit('error', 'Could not find receiver');
-            return;
+            if (!receiver) {
 
-        }
-        const uuid = uuidv4();
-        const dbMessage = await prisma.privateMessage.create({
-            data: {
-                to_id: receiver.id,
-                message,
-                from_id: socket.data.user.id,
-                id: uuid
-            },
-            select: {
-                message: true,
-                created: true,
-                id: true,
-                seen: true,
-                from: {
-                    select: { userPath: true },
+                socket.emit('error', 'Could not find receiver');
+                return;
+
+            }
+            const uuid = uuidv4();
+            const dbMessage = await prisma.privateMessage.create({
+                data: {
+                    to_id: receiver.id,
+                    message,
+                    from_id: socket.data.user.id,
+                    id: uuid
+                },
+                select: {
+                    message: true,
+                    created: true,
+                    id: true,
+                    seen: true,
+                    from: {
+                        select: { userPath: true },
+                    }
                 }
+            });
+
+            if (!dbMessage) {
+                console.log('no db message');
+                socket.emit('error', 'Could not send message');
+                return;
+
+            } else {
+
+                if (receiver.socketId) {
+
+                    socket.to(receiver.socketId).emit('private message', { message: dbMessage });
+
+                }
+
             }
-        });
 
-        if (!dbMessage) {
-            console.log('no db message');
-            socket.emit('error', 'Could not send message');
-            return;
+        } catch (e) {
 
-        } else {
-
-            if (receiver.socketId) {
-
-                socket.to(receiver.socketId).emit('private message', { message: dbMessage });
-
-            }
+            console.log(e);
 
         }
+
+
     });
+
     socket.on('get conversation', async ({ userPath }) => {
 
-        const conversationPartner = await prisma.user.findUnique({
-            where: { userPath }
-        })
-        const messages = await prisma.privateMessage.findMany({
-            where: {
+        try {
 
-                OR: [
-                    {
-                        from_id: socket.data.user.id,
-                        to_id: conversationPartner.id,
-                    },
-                    {
-                        to_id: socket.data.user.id,
-                        from_id: conversationPartner.id,
+            const conversationPartner = await prisma.user.findUnique({
+                where: { userPath }
+            })
+            const messages = await prisma.privateMessage.findMany({
+                where: {
+
+                    OR: [
+                        {
+                            from_id: socket.data.user.id,
+                            to_id: conversationPartner.id,
+                        },
+                        {
+                            to_id: socket.data.user.id,
+                            from_id: conversationPartner.id,
+                        }
+                    ],
+                },
+                select: {
+                    message: true,
+                    created: true,
+                    id: true,
+                    seen: true,
+                    from: {
+                        select: { userPath: true },
                     }
-                ],
-            },
-            select: {
-                message: true,
-                created: true,
-                id: true,
-                seen: true,
-                from: {
-                    select: { userPath: true },
+                },
+                orderBy: {
+                    created: 'asc',
                 }
-            },
-            orderBy: {
-                created: 'asc',
+            });
+
+            const conversation = {
+                userPath,
+                messages,
+                img: conversationPartner.image,
+                displayName: `${conversationPartner.firstName} ${conversationPartner.lastName}`
             }
-        });
 
-        const conversation = {
-            userPath,
-            messages,
-            img: conversationPartner.image,
-            displayName: `${conversationPartner.firstName} ${conversationPartner.lastName}`
+            socket.emit('get conversation', conversation);
+
+        } catch (e) {
+
+            console.log(e);
+
         }
-
-        socket.emit('get conversation', conversation);
 
     })
 
     socket.on('get conversation list', async () => {
 
-        const sentList = await prisma.privateMessage.findMany({
-            where: { from_id: socket.data.user.id, },
-            distinct: ['to_id'],
-            orderBy: {
-                created: 'desc',
-            },
-            include: {
-                to: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        userPath: true,
-                        image: true,
-                        profilePicture: true,
-                    }
+        try {
+
+            const sentList = await prisma.privateMessage.findMany({
+                where: { from_id: socket.data.user.id, },
+                distinct: ['to_id'],
+                orderBy: {
+                    created: 'desc',
                 },
-            }
-        });
-        const receivedList = await prisma.privateMessage.findMany({
-            where: { to_id: socket.data.user.id, },
-            orderBy: {
-                created: 'desc',
-            },
-            include: {
-                from: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        userPath: true,
-                        image: true,
-                        profilePicture: true,
-                    }
+                include: {
+                    to: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            userPath: true,
+                            image: true,
+                            profilePicture: true,
+                        }
+                    },
+                }
+            });
+            const receivedList = await prisma.privateMessage.findMany({
+                where: { to_id: socket.data.user.id, },
+                orderBy: {
+                    created: 'desc',
                 },
-            }
-        });
-        const combinedList = [...sentList];
+                include: {
+                    from: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            userPath: true,
+                            image: true,
+                            profilePicture: true,
+                        }
+                    },
+                }
+            });
+            const combinedList = [...sentList];
 
-        combinedList.forEach(message => {
-            message.message = `Du: ${message.message}`;
-            message.unseen = 0;
-        });
+            combinedList.forEach(message => {
+                message.message = `Du: ${message.message}`;
+                message.unseen = 0;
+            });
 
-        const receivedFrom = [];
+            const receivedFrom = [];
 
-        receivedList.forEach(message => {
+            receivedList.forEach(message => {
 
 
 
-            if (receivedFrom.filter(user => user.userPath === message.from.userPath).length === 0) {
+                if (receivedFrom.filter(user => user.userPath === message.from.userPath).length === 0) {
 
-                receivedFrom.push({ userPath: message.from.userPath, unseen: 0 })
+                    receivedFrom.push({ userPath: message.from.userPath, unseen: 0 })
 
-            }
-            if (!message.seen) {
+                }
+                if (!message.seen) {
+                    for (let i = 0; i < receivedFrom.length; i++) {
+
+                        if (message.from.userPath === receivedFrom[i].userPath) {
+
+                            receivedFrom[i].unseen++;
+
+                        }
+                    }
+                }
+
                 for (let i = 0; i < receivedFrom.length; i++) {
 
                     if (message.from.userPath === receivedFrom[i].userPath) {
 
-                        receivedFrom[i].unseen++;
+                        if (receivedFrom[i].message) {
 
-                    }
-                }
-            }
+                            if (message.created > receivedFrom[i].message.created) {
 
-            for (let i = 0; i < receivedFrom.length; i++) {
+                                receivedFrom[i].message = message;
 
-                if (message.from.userPath === receivedFrom[i].userPath) {
-
-                    if (receivedFrom[i].message) {
-
-                        if (message.created > receivedFrom[i].message.created) {
+                            }
+                        } else {
 
                             receivedFrom[i].message = message;
 
                         }
-                    } else {
-
-                        receivedFrom[i].message = message;
-
                     }
                 }
-            }
-        })
+            })
 
-        receivedFrom.forEach(user => {
+            receivedFrom.forEach(user => {
 
-            user.message.unseen = user.unseen;
-            user.message.to = user.message.from
-            let exists = false;
+                user.message.unseen = user.unseen;
+                user.message.to = user.message.from
+                let exists = false;
 
-            for (let i = 0; i < combinedList.length; i++) {
+                for (let i = 0; i < combinedList.length; i++) {
 
-                if (combinedList[i].to_id === user.message.from_id) {
+                    if (combinedList[i].to_id === user.message.from_id) {
 
-                    exists = true;
+                        exists = true;
 
-                    if (combinedList[i].created < user.message.created) {
+                        if (combinedList[i].created < user.message.created) {
 
-                        combinedList[i] = user.message;
+                            combinedList[i] = user.message;
+
+                        }
 
                     }
 
                 }
 
-            }
+                if (!exists) {
 
-            if (!exists) {
+                    combinedList.push(user.message);
 
-                combinedList.push(user.message);
+                }
+            });
 
-            }
-        });
+            combinedList.sort((a, b) => {
 
-        combinedList.sort((a, b) => {
+                if (a.created < b.created) {
 
-            if (a.created < b.created) {
+                    return -1;
 
-                return -1;
+                }
 
-            }
+                if (a.created > b.created) {
 
-            if (a.created > b.created) {
+                    return 1;
 
-                return 1;
+                }
 
-            }
+                return 0;
 
-            return 0;
+            })
 
-        })
+            combinedList.forEach(message => {
 
-        combinedList.forEach(message => {
+                if (message.to.profilePicture) {
 
-            if (message.to.profilePicture) {
+                    message.to.image = message.to.profilePicture
 
-                message.to.image = message.to.profilePicture
+                }
+                delete message.to.profilePicture;
+                delete message.from_id;
+                delete message.to_id;
+                delete message.id;
+                delete message.from;
+            });
 
-            }
-            delete message.to.profilePicture;
-            delete message.from_id;
-            delete message.to_id;
-            delete message.id;
-            delete message.from;
-        });
+            socket.emit('get conversation list', { conversations: combinedList })
 
-        socket.emit('get conversation list', { conversations: combinedList })
+        } catch (e) {
+
+            console.log(e);
+
+        }
 
     })
 
     socket.on('messages seen', async ({ seenMsgs }) => {
 
-        for (let i = 0; i < seenMsgs.messages.length; i++) {
+        try {
 
-            await prisma.privateMessage.update({
-                where: { id: seenMsgs.messages[i] },
-                data: { seen: seenMsgs.time }
-            })
+            for (let i = 0; i < seenMsgs.messages.length; i++) {
+
+                await prisma.privateMessage.update({
+                    where: { id: seenMsgs.messages[i] },
+                    data: { seen: seenMsgs.time }
+                })
+            }
+
+        } catch (e) {
+
+            console.log(e);
+
         }
+
+
     })
 
     socket.on('notification', async (notification) => {
 
-        const receiver = await prisma.user.findUnique({
-            where: { userPath: notification.to },
-            include: {
-                notificationsReceived: true,
-                notificationsSent: true,
-            }
-        })
+        try {
 
-        if (!receiver) {
+            const receiver = await prisma.user.findUnique({
+                where: { userPath: notification.to },
+                include: {
+                    notificationsReceived: true,
+                    notificationsSent: true,
+                }
+            })
 
-            socket.emit('error', 'Could not find receiver');
-            return;
+            if (!receiver) {
 
-        }
-
-        let unseen = 0;
-
-        for (let i = 0; i < receiver.notificationsReceived.length; i++) {
-
-            if (!receiver.notificationsReceived[i].seen) {
-
-                unseen++;
+                socket.emit('error', 'Could not find receiver');
+                return;
 
             }
 
+            let unseen = 0;
+
+            for (let i = 0; i < receiver.notificationsReceived.length; i++) {
+
+                if (!receiver.notificationsReceived[i].seen) {
+
+                    unseen++;
+
+                }
+
+            }
+
+            if (receiver.socketId) {
+
+                socket.to(receiver.socketId).emit('notification', unseen);
+
+            }
+
+        } catch (e) {
+
+            console.log(e);
+
         }
 
-        if (receiver.socketId) {
 
-            socket.to(receiver.socketId).emit('notification', unseen);
-
-        }
 
     });
 
@@ -351,214 +398,241 @@ io.on('connection', (socket) => {
 
     socket.on('get notifications', async () => {
 
-        const data = await prisma.notification.findMany({
-            where: { to_id: socket.data.user.id },
-            orderBy: {
-                updated: 'asc'
-            },
-            include: {
-                from: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        userPath: true,
-                        image: true,
-                        profilePicture: true,
-                    }
+        try {
+
+            const data = await prisma.notification.findMany({
+                where: { to_id: socket.data.user.id },
+                orderBy: {
+                    updated: 'asc'
                 },
-                to: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        userPath: true,
-                        image: true,
-                        profilePicture: true,
-                    }
-                },
-            }
-        })
-
-        if (data) {
-
-            const notifications = [];
-
-            for (let i = 0; i < data.length; i++) {
-
-                let pic;
-
-                if (data[i].from.profilePicture) {
-                    pic = data[i].from.profilePicture;
-                } else {
-                    pic = data[i].from.image;
+                include: {
+                    from: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            userPath: true,
+                            image: true,
+                            profilePicture: true,
+                        }
+                    },
+                    to: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            userPath: true,
+                            image: true,
+                            profilePicture: true,
+                        }
+                    },
                 }
+            })
 
-                let note;
+            if (data) {
 
-                switch (data[i].type) {
+                const notifications = [];
 
-                    case 'friendrequest':
-                        note = {
+                for (let i = 0; i < data.length; i++) {
 
-                            id: data[i].id,
-                            type: 'friendrequest',
-                            message: `Du har fått en vänförfrågan från ${data[i].from.firstName} ${data[i].from.lastName}`,
-                            image: pic,
-                            updated: data[i].updated,
-                            seen: data[i].seen,
+                    let pic;
 
-                        }
+                    if (data[i].from.profilePicture) {
+                        pic = data[i].from.profilePicture;
+                    } else {
+                        pic = data[i].from.image;
+                    }
 
-                        break;
+                    let note;
 
-                    case 'friendrequest confirmed':
-                        note = {
-                            id: data[i].id,
-                            type: 'friendrequest confirmed',
-                            message: `${data[i].from.firstName} ${data[i].from.lastName} har bekräftat din vänförfrågan`,
-                            image: pic,
-                            updated: data[i].updated,
-                            userPath: data[i].from.userPath,
-                            seen: data[i].seen,
+                    switch (data[i].type) {
 
-                        }
+                        case 'friendrequest':
+                            note = {
 
-                        break;
+                                id: data[i].id,
+                                type: 'friendrequest',
+                                message: `Du har fått en vänförfrågan från ${data[i].from.firstName} ${data[i].from.lastName}`,
+                                image: pic,
+                                updated: data[i].updated,
+                                seen: data[i].seen,
 
-                    case 'like post':
+                            }
 
-                        const post = await prisma.post.findUnique({
-                            where: { id: data[i].targetPost_id },
-                            select: {
-                                likes: {
-                                    orderBy: {
-                                        created: 'desc'
-                                    },
-                                    select: {
-                                        liked_by: {
-                                            select: {
-                                                firstName: true,
-                                                lastName: true,
+                            break;
+
+                        case 'friendrequest confirmed':
+                            note = {
+                                id: data[i].id,
+                                type: 'friendrequest confirmed',
+                                message: `${data[i].from.firstName} ${data[i].from.lastName} har bekräftat din vänförfrågan`,
+                                image: pic,
+                                updated: data[i].updated,
+                                userPath: data[i].from.userPath,
+                                seen: data[i].seen,
+
+                            }
+
+                            break;
+
+                        case 'like post':
+
+                            const post = await prisma.post.findUnique({
+                                where: { id: data[i].targetPost_id },
+                                select: {
+                                    likes: {
+                                        orderBy: {
+                                            created: 'desc'
+                                        },
+                                        select: {
+                                            liked_by: {
+                                                select: {
+                                                    firstName: true,
+                                                    lastName: true,
+                                                }
                                             }
                                         }
                                     }
                                 }
+                            })
+
+                            let message;
+
+                            if (post.likes.length === 1) {
+
+                                message = `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName} har gillat ditt inlägg`;
+
+                            } else if (post.likes.length === 2) {
+
+                                message = `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName} och ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} har gillat ditt inlägg`;
+
+                            } else {
+
+                                const number = post.likes.length - 2;
+                                `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName}, ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} och ${number} andra har gillat ditt inlägg`;
+
                             }
-                        })
 
-                        let message;
+                            note = {
+                                id: data[i].id,
+                                type: 'like post',
+                                message: message,
+                                image: pic,
+                                updated: data[i].updated,
+                                userPath: data[i].from.userPath,
+                                seen: data[i].seen,
+                                targetPost: data[i].targetPost,
 
-                        if (post.likes.length === 1) {
+                            }
 
-                            message = `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName} har gillat ditt inlägg`;
+                            break;
 
-                        } else if (post.likes.length === 2) {
+                        default:
 
-                            message = `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName} och ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} har gillat ditt inlägg`;
+                            note = {
+                                id: data[i].id,
+                                type: 'default',
+                                message: data[i].message,
+                                updated: data[i].updated,
+                                seen: data[i].seen,
 
-                        } else {
+                            }
 
-                            const number = post.likes.length - 2;
-                            `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName}, ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} och ${number} andra har gillat ditt inlägg`;
+                    }
 
-                        }
-
-                        note = {
-                            id: data[i].id,
-                            type: 'like post',
-                            message: message,
-                            image: pic,
-                            updated: data[i].updated,
-                            userPath: data[i].from.userPath,
-                            seen: data[i].seen,
-                            targetPost: data[i].targetPost,
-
-                        }
-
-                        break;
-
-                    default:
-
-                        note = {
-                            id: data[i].id,
-                            type: 'default',
-                            message: data[i].message,
-                            updated: data[i].updated,
-                            seen: data[i].seen,
-
-                        }
+                    notifications.push(note);
 
                 }
 
-                notifications.push(note);
+                socket.emit('get notifications', notifications);
 
             }
 
-            socket.emit('get notifications', notifications);
+        } catch (e) {
+
+            console.log(e);
 
         }
+
+
 
     })
 
     socket.on('check unseen notifications', async () => {
 
-        const notifications = await prisma.notification.findMany({
-            where: { to_id: socket.data.user.id }
+        try {
 
-        })
+            const notifications = await prisma.notification.findMany({
+                where: { to_id: socket.data.user.id }
 
-        if (notifications) {
+            })
 
-            let unseen = 0;
+            if (notifications) {
 
-            for (let i = 0; i < notifications.length; i++) {
+                let unseen = 0;
 
-                if (!notifications[i].seen) {
+                for (let i = 0; i < notifications.length; i++) {
 
-                    unseen++;
+                    if (!notifications[i].seen) {
+
+                        unseen++;
+
+                    }
+
+                }
+
+                if (unseen > 0) {
+
+                    socket.emit('notification', unseen);
+
 
                 }
 
             }
 
-            if (unseen > 0) {
+        } catch (e) {
 
-                socket.emit('notification', unseen);
-
-
-            }
+            console.log(e);
 
         }
+
+
 
     })
 
     socket.on('get friends list', async () => {
 
-        const user = await prisma.user.findUnique({
-            where: { id: socket.data.user.id },
-            select: {
-                friends: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        userPath: true,
-                        image: true,
-                        socketId: true,
-                        id: true,
-                        profilePicture: true,
+        try {
+
+            const user = await prisma.user.findUnique({
+                where: { id: socket.data.user.id },
+                select: {
+                    friends: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            userPath: true,
+                            image: true,
+                            socketId: true,
+                            id: true,
+                            profilePicture: true,
+                        }
                     }
                 }
+            })
+
+            if (!user) {
+
+                socket.emit('error', 'Could not find user');
+                return;
+
             }
-        })
 
-        if (!user) {
+            socket.emit('get friends list', user.friends);
 
-            socket.emit('error', 'Could not find user');
-            return;
+        } catch (e) {
+
+            console.log(e);
 
         }
-
-        socket.emit('get friends list', user.friends);
-
     })
 
 })
