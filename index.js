@@ -507,7 +507,7 @@ io.on('connection', (socket) => {
                             } else {
 
                                 const number = post.likes.length - 2;
-                                `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName}, ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} och ${number} andra har gillat ditt inlägg`;
+                                message = `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName}, ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} och ${number} andra har gillat ditt inlägg`;
 
                             }
 
