@@ -145,6 +145,7 @@ io.on('connection', (socket) => {
                         lastName: true,
                         userPath: true,
                         image: true,
+                        profilePicture: true,
                     }
                 },
             }
@@ -161,6 +162,7 @@ io.on('connection', (socket) => {
                         lastName: true,
                         userPath: true,
                         image: true,
+                        profilePicture: true,
                     }
                 },
             }
@@ -262,6 +264,13 @@ io.on('connection', (socket) => {
         })
 
         combinedList.forEach(message => {
+
+            if (message.to.profilePicture) {
+
+                message.to.image = message.to.profilePicture
+
+            }
+            delete message.to.profilePicture;
             delete message.from_id;
             delete message.to_id;
             delete message.id;
@@ -354,6 +363,7 @@ io.on('connection', (socket) => {
                         lastName: true,
                         userPath: true,
                         image: true,
+                        profilePicture: true,
                     }
                 },
                 to: {
@@ -362,6 +372,7 @@ io.on('connection', (socket) => {
                         lastName: true,
                         userPath: true,
                         image: true,
+                        profilePicture: true,
                     }
                 },
             }
@@ -373,6 +384,14 @@ io.on('connection', (socket) => {
 
             for (let i = 0; i < data.length; i++) {
 
+                let pic;
+
+                if (data[i].from.profilePicture) {
+                    pic = data[i].from.profilePicture;
+                } else {
+                    pic = data[i].from.image;
+                }
+
                 let note;
 
                 switch (data[i].type) {
@@ -383,7 +402,7 @@ io.on('connection', (socket) => {
                             id: data[i].id,
                             type: 'friendrequest',
                             message: `Du har fått en vänförfrågan från ${data[i].from.firstName} ${data[i].from.lastName}`,
-                            image: data[i].from.image,
+                            image: pic,
                             updated: data[i].updated,
                             seen: data[i].seen,
 
@@ -396,10 +415,62 @@ io.on('connection', (socket) => {
                             id: data[i].id,
                             type: 'friendrequest confirmed',
                             message: `${data[i].from.firstName} ${data[i].from.lastName} har bekräftat din vänförfrågan`,
-                            image: data[i].from.image,
+                            image: pic,
                             updated: data[i].updated,
                             userPath: data[i].from.userPath,
                             seen: data[i].seen,
+
+                        }
+
+                        break;
+
+                    case 'like post':
+
+                        const post = await prisma.post.findUnique({
+                            where: { id: data[i].targetPost_id },
+                            select: {
+                                likes: {
+                                    orderBy: {
+                                        created: 'desc'
+                                    },
+                                    select: {
+                                        liked_by: {
+                                            select: {
+                                                firstName: true,
+                                                lastName: true,
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        })
+
+                        let message;
+
+                        if (post.likes.length === 1) {
+
+                            message = `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName} har gillat ditt inlägg`;
+
+                        } else if (post.likes.length === 2) {
+
+                            message = `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName} och ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} har gillat ditt inlägg`;
+
+                        } else {
+
+                            const number = post.likes.length - 2;
+                            `${post.likes[0].liked_by.firstName} ${post.likes[0].liked_by.lastName}, ${post.likes[1].liked_by.firstName} ${post.likes[1].liked_by.lastName} och ${number} andra har gillat ditt inlägg`;
+
+                        }
+
+                        note = {
+                            id: data[i].id,
+                            type: 'like post',
+                            message: message,
+                            image: pic,
+                            updated: data[i].updated,
+                            userPath: data[i].from.userPath,
+                            seen: data[i].seen,
+                            targetPost: data[i].targetPost,
 
                         }
 
@@ -473,6 +544,7 @@ io.on('connection', (socket) => {
                         image: true,
                         socketId: true,
                         id: true,
+                        profilePicture: true,
                     }
                 }
             }
